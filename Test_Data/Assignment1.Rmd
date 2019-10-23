@@ -1,0 +1,92 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+dir---
+title: "Assignment-1"
+author: "Shrija Srinivasan"
+date: "08/10/2019"
+output: pdf_document
+---
+OK, We have a expression data for different transcripts. We know that different transcripts will be expressed different at different levels.
+The steps that would be involved for finding the transcripts that are upregulated and downregulated:
+1. Get the RPKM values for each transcripts in each tissue(Found and available in the data)
+2. Sort the transcripts based on the total RPKM across all tissues.(the reference transcript would have expressed the most)
+3. P value adjusted. 
+4. To find out the differentially expressed transcripts between mutant and wildtype. 
+To find the differentially expressed transcripts, we need to download the basic library packages and customise the salmon to obtain the differentially expressed transcripts. Done using the following:
+As transcripts could be many and would arise from one gene, it would be nice to associate it to a gene, so we could have a count table easily. After creating a vector to the quantification files, the samples have been read and analysed accordingly to associate the transcripts with gene-ID for summary at gene-level. We try to load data for tximport. To remember that there are two kinds of data available. One is the extdata having the annotation files and the other are the Test data(which we have at the moment) and we integrate them into R studio.
+
+```{r implementation to demonstrate tximport and readr package}
+
+dir<- file.path("/home/shrija/Documents/UjjwalNeogiLab")
+list.files(dir)
+a <- c("quant_mut1.sf","quant_mut2.sf","quant_mut3.sf","quant_wt1.sf","quant_wt2.sf","quant_wt3.sf")
+files<-file.path(dir, "Test_Data", a)
+names(files) <- c(paste0("M_",1:3), paste0("WT-",1:3))
+files
+library(readr)
+#tx2gene <- read_csv(file.path(dir1, "tx2gene.gencode.v27.csv"))
+library(tximport)
+```
+
+```{r}
+txi.tx <- tximport(files, type = "salmon", txOut = TRUE)
+txi.tx
+```
+```{r}
+txi.tx$counts
+```
+
+These matrices can then be summarized using the function summarizetoGene. The txOut=TRUE is used to understand the differential transcript usage analyses.
+
+And to check the number of samples and variability available, we try to find the differential replicates before we assess the unregulated and down regulated transcripts. Done using the following:
+
+
+## Into the Main Analysis
+
+After having the summary of inferential replicate information to gene-level, we try to import "DESeq2" package to understand the differentially expressed genes.
+
+```{r differential analysis}
+library(DESeq2)
+sampleTable <- data.frame(condition = factor(rep(c("Mutant", "WildType"), each = 3)))
+rownames(sampleTable) <- colnames(txi.tx$counts)
+colnames(txi.tx$counts)
+dds <- DESeqDataSetFromTximport(txi.tx, sampleTable, ~condition)
+dds
+is(dds)
+slotNames(dds)
+ds <- DESeq(dds)
+head((ds))
+res <- results(ds, c("condition","Mutant","WildType"))
+write.table(res,file="Result.txt",sep="\t",quote=FALSE)
+res
+```
+
+## Including Upregulated and Downregulated Transcripts
+
+To form a new table on the regulation of transcripts:
+
+```{r pressure, echo=FALSE}
+library(dplyr)
+res$upregulated<-unlist(res$log2FoldChange >=1.5 & res$padj<0.05)
+results_upregulated<-subset(res,upregulated=="TRUE")
+write.table(results_upregulated,"Upregulatedtranscripts.txt")
+res$downregulated<-unlist(res$log2FoldChange <=1.5 & res$padj<0.05)
+results_downregulated<-subset(res,downregulated=="TRUE")
+write.table(results_downregulated,"Downregulatedtranscripts.txt")
+head(res)
+```
+
+Note that there were 28 downregulated and 16 unregulated transcripts in the given differentially expressed analysis.
+
+## Linux Commands
+
+Linux command to convert fastq files to fasta: seqtk seq -a infile.fq.gz> outfile.fa
+
+Linux command to concatenate two files: cat file1.txt file2.txt> mergedfile.txt 
+
+Linux command to count number of reads in fastq file: echo(cat file |wc -l)/4 
+
+Linux command to count number of sequences in fasta file: grep -c ">" file.fa  or grep "give the number" file.fa
